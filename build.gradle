@@ -1,0 +1,24 @@
+plugins {
+    id 'java'
+}
+
+version '1.0-SNAPSHOT'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+
+}
+
+dependencies {
+    testCompile 'junit:junit:4.12'
+
+    compile "io.pravega:pravega-client:0.4.0-1944.dc5d241-SNAPSHOT",
+            "io.pravega:pravega-common:0.4.0-1944.dc5d241-SNAPSHOT"
+
+    compile 'commons-cli:commons-cli:1.4'
+
+    compile 'org.slf4j:slf4j-simple:1.7.9'
+}
