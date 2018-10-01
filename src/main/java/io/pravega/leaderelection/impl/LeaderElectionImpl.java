@@ -3,7 +3,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
 import java.io.Serializable;
 import io.pravega.client.state.SynchronizerConfig;
-import io.pravega.leaderelection.LeaderElection.Callback;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.ScalingPolicy;
@@ -14,6 +13,7 @@ import io.pravega.client.state.Revision;
 import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.Update;
 import io.pravega.client.state.InitialUpdate;
+import io.pravega.leaderelection.LeaderElection.LeaderCrashListener;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -61,7 +61,7 @@ public class LeaderElectionImpl extends AbstractService{
     /**
      * The callback function.
      */
-    private final Callback listener;
+    private final LeaderCrashListener listener;
     /**
      * The result of the scheduling executor.
      */
@@ -76,7 +76,7 @@ public class LeaderElectionImpl extends AbstractService{
      * @param executor the scheduled executor to be used for heartbeater.
      */
     public LeaderElectionImpl(String scope, String name, ClientFactory clientFactory, StreamManager streamManager,
-                       ScheduledExecutorService executor, Callback listener, String hostName) {
+                       ScheduledExecutorService executor, LeaderCrashListener listener, String hostName) {
 
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(name);
@@ -370,10 +370,6 @@ public class LeaderElectionImpl extends AbstractService{
             }
         }
     }
-
-    /**
-     * If the leader is crashed, notify the application to stop acting.
-     */
 
     public Set<String> getCurrentMembers() {
         return stateSync.getState().getLiveInstances();

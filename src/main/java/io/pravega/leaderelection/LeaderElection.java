@@ -17,22 +17,25 @@ public class LeaderElection {
     private final StreamManager streamManager;
     private final String scopeName;
     private final String streamName;
+    private final String hostName;
 
-    public LeaderElection(String scope, String configName, URI controllerURI, Callback listener, String hostName) {
+    public LeaderElection(String scope, String configName, URI controllerURI, String hostName, LeaderCrashListener listener) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(configName);
         Preconditions.checkNotNull(controllerURI);
         Preconditions.checkNotNull(listener);
+        Preconditions.checkNotNull(hostName);
         this.scopeName = scope;
         this.streamName = configName;
         this.clientFactory = ClientFactory.withScope(scope, controllerURI);
         this.streamManager = StreamManager.create(controllerURI);
+        this.hostName = hostName;
         ScheduledExecutorService pool = Executors.newScheduledThreadPool(1);
         leaderElectionImpl = new LeaderElectionImpl(scope, configName, clientFactory, streamManager, pool, listener, hostName);
 
     }
 
-    public void create() {
+    public void start() {
          leaderElectionImpl.add();
          leaderElectionImpl.startAsync();
 
@@ -42,10 +45,25 @@ public class LeaderElection {
         leaderElectionImpl.stopAsync();
     }
 
-    public interface Callback {
+    public Set<String> getCurrentMembers() {
+        return leaderElectionImpl.getCurrentMembers();
+    }
+
+    public String getCurrentLeader() {
+        return leaderElectionImpl.getCurrentLeader();
+    }
+
+    public String getInstanceId() {
+        return leaderElectionImpl.getInstanceId();
+    }
+
+    public Boolean isLeader() {
+        return hostName.equals(leaderElectionImpl.getCurrentLeader());
+    }
+
+    public interface LeaderCrashListener {
         void selectLeader(String name);
         void crashLeader(String name);
-
     }
 
     public void deleteStream() {
@@ -71,16 +89,5 @@ public class LeaderElection {
         }
     }
 
-    public Set<String> getCurrentMembers() {
-        return leaderElectionImpl.getCurrentMembers();
-    }
-
-    public String getCurrentLeader() {
-        return leaderElectionImpl.getCurrentLeader();
-    }
-
-    public String getInstanceId() {
-        return leaderElectionImpl.getInstanceId();
-    }
 
 }
