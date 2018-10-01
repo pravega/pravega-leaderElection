@@ -2,6 +2,7 @@
 This is the external LeaderElection API based on pravega state synchronizer.
 ## Pre-requisties
 Pravega running
+Install the Lombok Plugin. This can be found in Preferences -> Plugins. Restart your IDE
 ## Running test
 The scpoename, streamname uri and hostname are configurable.  
 if not included, the defaults are:  
