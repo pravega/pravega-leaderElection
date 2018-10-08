@@ -3,7 +3,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
 
 @Slf4j
-class Client extends Thread implements LeaderElection.LeaderCrashListener {
+class Client extends Thread implements LeaderElection.LeaderElectionCallback {
 
     private static final String DEFAULT_SCOPE = "election";
     private static final String DEFAULT_CONFIG_NAME = "leaderElection";
@@ -21,7 +21,7 @@ class Client extends Thread implements LeaderElection.LeaderCrashListener {
 
     @Override
     public void run() {
-        le.start();
+        le.start(500);
         while(flag);
         le.stop();
         le.close();
@@ -41,14 +41,17 @@ class Client extends Thread implements LeaderElection.LeaderCrashListener {
 
 
     @Override
-    public void selectLeader(String name) {
-        log.info("The new leader is: " + name);
+    public void onNewLeader(String name) {
+        log.info(name + " become leader!");
     }
 
     @Override
-    public void crashLeader(String name) {
-        log.info("The leader: " + name + " is crashed ");
+    public void startActingLeader() {
+        log.info(le.getInstanceId() + "start acting leader");
     }
 
-
+    @Override
+    public void stopActingLeader() {
+        log.info(le.getInstanceId() + "stop acting leader");
+    }
 }

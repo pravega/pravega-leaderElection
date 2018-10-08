@@ -17,9 +17,8 @@ public class LeaderElection {
     private final StreamManager streamManager;
     private final String scopeName;
     private final String streamName;
-    private final String hostName;
 
-    public LeaderElection(String scope, String configName, URI controllerURI, String hostName, LeaderCrashListener listener) {
+    public LeaderElection(String scope, String configName, URI controllerURI, String hostName, LeaderElectionCallback listener) {
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(configName);
         Preconditions.checkNotNull(controllerURI);
@@ -29,15 +28,15 @@ public class LeaderElection {
         this.streamName = configName;
         this.clientFactory = ClientFactory.withScope(scope, controllerURI);
         this.streamManager = StreamManager.create(controllerURI);
-        this.hostName = hostName;
         ScheduledExecutorService pool = Executors.newScheduledThreadPool(1);
         leaderElectionImpl = new LeaderElectionImpl(scope, configName, clientFactory, streamManager, pool, listener, hostName);
 
     }
 
-    public void start() {
-         leaderElectionImpl.add();
-         leaderElectionImpl.startAsync();
+    public void start(int updateRate) {
+        leaderElectionImpl.setRate(updateRate);
+        leaderElectionImpl.add();
+        leaderElectionImpl.startAsync();
 
     }
 
@@ -57,13 +56,11 @@ public class LeaderElection {
         return leaderElectionImpl.getInstanceId();
     }
 
-    public Boolean isLeader() {
-        return hostName.equals(leaderElectionImpl.getCurrentLeader());
-    }
 
-    public interface LeaderCrashListener {
-        void selectLeader(String name);
-        void crashLeader(String name);
+    public interface LeaderElectionCallback {
+       void onNewLeader(String name);
+       void startActingLeader();
+       void stopActingLeader();
     }
 
     public void deleteStream() {

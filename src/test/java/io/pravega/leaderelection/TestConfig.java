@@ -104,22 +104,6 @@ public class TestConfig {
     }
 
     /**
-     * check that there's no leader.
-     */
-    public boolean checkNoLeader() {
-        for (String host: clientMap.keySet()) {
-            if (connected.contains(host)) {
-                Client t = clientMap.get(host);
-                String leader = t.getLeader();
-                if (leader != null) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    /**
      * return all connected host.
      */
     public List<String> getAllConnectHost() {

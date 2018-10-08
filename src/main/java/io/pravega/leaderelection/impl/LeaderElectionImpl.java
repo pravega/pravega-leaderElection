@@ -13,7 +13,7 @@ import io.pravega.client.state.Revision;
 import io.pravega.client.state.Revisioned;
 import io.pravega.client.state.Update;
 import io.pravega.client.state.InitialUpdate;
-import io.pravega.leaderelection.LeaderElection.LeaderCrashListener;
+import io.pravega.leaderelection.LeaderElection.LeaderElectionCallback;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,29 +27,37 @@ import java.util.Map.Entry;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 @Slf4j
 public class LeaderElectionImpl extends AbstractService{
 
     /**
-     * How frequently to update the segment using a heartbeat.
-     */
-    private static final int UPDATE_INTERVAL_MILLIS = 500;
-    /**
      * Number of intervals behind before another host should be considered dead.
      */
-    private static final int DEATH_THRESHOLD = 3;
+    private static final int DEATH_THRESHOLD = 6;
     /**
-     * Number of intervals should wait to start choose new leader
+     * Number of intervals behind before we should stop executing for safety.
      */
-    private static final int WAIT_TO_ELECTION_THRESHOLD = 5;
-    /**
-     * The initial timeout in second for each host.
-     */
-    private static final double INITIAL_TIMEOUT = UPDATE_INTERVAL_MILLIS / (1000 * 1.0);
+    private static final int UNHEALTHY_THRESHOLD = 3;
+
     /**
      * The  Universally Unique Identifier to identify LeaderElection Synchronizer.
      */
     private final String instanceId;
+
+    private final AtomicBoolean healthy = new AtomicBoolean();
+
+    private String leaderName = null;
+
+    /**
+     *  The initial timeout cycle for each host.
+     */
+    private static final double INITIAL_TIMEOUT = 1.0;
+    /**
+     * The heartbeat rate in pre
+     */
+    private int updateRate;
     /**
      * The local state of the shared Membership state.
      */
@@ -61,7 +69,7 @@ public class LeaderElectionImpl extends AbstractService{
     /**
      * The callback function.
      */
-    private final LeaderCrashListener listener;
+    private final LeaderElectionCallback listener;
     /**
      * The result of the scheduling executor.
      */
@@ -76,7 +84,7 @@ public class LeaderElectionImpl extends AbstractService{
      * @param executor the scheduled executor to be used for heartbeater.
      */
     public LeaderElectionImpl(String scope, String name, ClientFactory clientFactory, StreamManager streamManager,
-                       ScheduledExecutorService executor, LeaderCrashListener listener, String hostName) {
+                       ScheduledExecutorService executor, LeaderElectionCallback listener, String hostName) {
 
         Preconditions.checkNotNull(scope);
         Preconditions.checkNotNull(name);
@@ -129,10 +137,6 @@ public class LeaderElectionImpl extends AbstractService{
          * The number of the leader, default value is null.
          */
         private final String leaderName;
-        /**
-         * The time that leader Crash, default value is null.
-         */
-        private final Long leaderCrashTime;
 
         @Override
         public int compareTo(LiveInstances o) {
@@ -150,11 +154,11 @@ public class LeaderElectionImpl extends AbstractService{
          */
         private List<String> findInstancesThatWillDieBy(long vectorTime) {
             double deathThreshold;
+            double deathCycle;
             List<String> res = new ArrayList<>();
             for (String key: liveInstances.keySet()) {
-                double deathTime = DEATH_THRESHOLD * liveInstances.get(key).timeout;
-                deathThreshold = (deathTime / INITIAL_TIMEOUT + 1)
-                        * (liveInstances.size() - 1);
+                deathCycle = DEATH_THRESHOLD * liveInstances.get(key).timeout;
+                deathThreshold = (deathCycle + 1) * (liveInstances.size() - 1);
                 if (liveInstances.get(key).timestamp < (vectorTime - deathThreshold)) {
                     res.add(key);
                 }
@@ -162,16 +166,10 @@ public class LeaderElectionImpl extends AbstractService{
             return res;
         }
 
-        /**
-         * When leader is crash we should wait enough time to make sure that the previous leader
-         * is stopping acting as leader.
-         * @param vectorTime The given time.
-         * @return true means has wait enough time, otherwise false.
-         */
-        private boolean isOverWaitTime(long vectorTime) {
-            long waitThreshold = vectorTime - WAIT_TO_ELECTION_THRESHOLD * liveInstances.size();
-            //System.out.println("WaiThreshold: " + waitThreshold + " " + vectorTime);
-            return (leaderCrashTime == null) || (leaderCrashTime <= waitThreshold);
+        public boolean isHealthy(String name) {
+            long unhealthyThreshold = vectorTime - UNHEALTHY_THRESHOLD * liveInstances.size();
+            Instance instance = liveInstances.get(name);
+            return instance == null || instance.timestamp >= unhealthyThreshold;
         }
         /**
          * Return all instances that are alived.
@@ -190,7 +188,7 @@ public class LeaderElectionImpl extends AbstractService{
 
         @Override
         public LiveInstances create(String scopedStreamName, Revision revision) {
-            return new LiveInstances(scopedStreamName, revision, liveInstances, 0, null, null);
+            return new LiveInstances(scopedStreamName, revision, liveInstances, 0, null);
         }
     }
 
@@ -214,8 +212,7 @@ public class LeaderElectionImpl extends AbstractService{
                     newRevision,
                     Collections.unmodifiableMap(tempInstances),
                     vectorTime,
-                    state.leaderName,
-                    state.leaderCrashTime);
+                    state.leaderName);
         }
     }
 
@@ -232,15 +229,13 @@ public class LeaderElectionImpl extends AbstractService{
                     newRevision,
                     Collections.unmodifiableMap(tempInstances),
                     state.vectorTime,
-                    state.leaderName,
-                    state.leaderCrashTime);
+                    state.leaderName);
         }
     }
 
     @RequiredArgsConstructor
     private static class ClearLeaderName extends HeartbeatUpdate {
         private static final long serialVersionUID = 1L;
-        private final long crashTime;
         @Override
         public LiveInstances applyTo(LiveInstances state, Revision newRevision) {
 
@@ -248,8 +243,7 @@ public class LeaderElectionImpl extends AbstractService{
                     newRevision,
                     Collections.unmodifiableMap(state.liveInstances),
                     state.vectorTime,
-                    null,
-                    crashTime);
+                    null);
         }
     }
 
@@ -270,8 +264,7 @@ public class LeaderElectionImpl extends AbstractService{
                         newRevision,
                         Collections.unmodifiableMap(state.liveInstances),
                         state.vectorTime,
-                        newLeader,
-                        null);
+                        newLeader);
         }
     }
 
@@ -289,8 +282,7 @@ public class LeaderElectionImpl extends AbstractService{
                     newRevision,
                     Collections.unmodifiableMap(tempInstances),
                     state.vectorTime,
-                    state.leaderName,
-                    state.leaderCrashTime);
+                    state.leaderName);
         }
     }
 
@@ -301,37 +293,53 @@ public class LeaderElectionImpl extends AbstractService{
         public void run() {
             try {
                 stateSync.fetchUpdates();
-                String deadLeader = stateSync.updateState((state, updates) -> {
-                    String dead_leader = null;
+                notifyListener();
+                stateSync.updateState((state, updates) -> {
                     long vectorTime = state.getVectorTime() + 1;
                     Instance temp = state.liveInstances.get(instanceId);
                     long newTimes = temp.times + 1;
                     double newTimeout = (temp.timeout * temp.times +
                             (vectorTime - temp.timestamp) * 1.0 /
-                                    state.liveInstances.size() * INITIAL_TIMEOUT) / newTimes;
+                                    state.liveInstances.size()) / newTimes;
 
                     updates.add(new HeartBeat(instanceId, new Instance(vectorTime, newTimes, newTimeout)));
 
-                    for (String id: state.findInstancesThatWillDieBy(vectorTime)) {
-                        if(!id.equals(instanceId)) {
+                    for (String id : state.findInstancesThatWillDieBy(vectorTime)) {
+                        if (!id.equals(instanceId)) {
                             updates.add(new DeclareDead(id));
                             if (id.equals(state.leaderName)) {
-                                updates.add(new ClearLeaderName(vectorTime));
-                                dead_leader = id;
+                                updates.add(new ClearLeaderName());
                             }
                         }
                     }
-                    return dead_leader;
                 });
-                // if leaderCrashed, notify to the application.
-                if (deadLeader != null) {
-                    listener.crashLeader(deadLeader);
+
+                stateSync.updateState((state,updates) -> {
+                    if (state.leaderName == null) {
+                        String newLeader = state.liveInstances.entrySet()
+                                .stream().max(LiveInstances::compare).get().getKey();
+                        updates.add(new LeaderSet(newLeader));
+                    }
+
+                });
+
+                // when leader changes, notify to all.
+                if (leaderName == null || !leaderName.equals(stateSync.getState().leaderName)) {
+                    System.out.println(leaderName + " " + instanceId);
+                    leaderName = stateSync.getState().leaderName;
+                    System.out.println(leaderName);
+                    listener.onNewLeader(leaderName);
                 }
-                // check if need to select new leader.
-                notifyElection();
+                // check healthy
+                notifyListener();
 
             } catch (Exception e) {
                 log.warn("Encountered an error while heartbeating: " + e);
+                if (healthy.compareAndSet(true,false) && instanceId.equals(leaderName)) {
+                    if (instanceId.equals(leaderName)) {
+                        listener.stopActingLeader();
+                    }
+                }
             }
         }
     }
@@ -345,28 +353,20 @@ public class LeaderElectionImpl extends AbstractService{
         });
     }
 
-    /**
-     * If the instance find the leader is crash and the second Timeout is achieved.
-     * We can send an update to set the most healthy host to become new leader.
-     */
-    private void notifyElection() {
-        stateSync.fetchUpdates();
 
-        if (stateSync.getState().leaderName == null &&
-                stateSync.getState().isOverWaitTime(stateSync.getState().getVectorTime())) {
-
-            String selectedLeader = stateSync.updateState((state, updates) -> {
-                String leader = null;
-                if (state.leaderName == null) {
-                    String newLeader = state.liveInstances.entrySet().stream().max(LiveInstances::compare).get().getKey();
-                    updates.add(new LeaderSet(newLeader));
-                    leader = newLeader;
+    public void notifyListener() {
+        LiveInstances currentState = stateSync.getState();
+        if (currentState.isHealthy(instanceId)) {
+            if (healthy.compareAndSet(false, true)) {
+                if (instanceId.equals(leaderName)) {
+                    listener.startActingLeader();
                 }
-                return leader;
-            });
-
-            if (selectedLeader != null) {
-                listener.selectLeader(selectedLeader);
+            }
+        } else {
+            if (healthy.compareAndSet(true, false)) {
+                if (instanceId.equals(leaderName)) {
+                    listener.stopActingLeader();
+                }
             }
         }
     }
@@ -376,11 +376,19 @@ public class LeaderElectionImpl extends AbstractService{
     }
 
     public String getCurrentLeader() {
-        return stateSync.getState().leaderName;
+        return leaderName;
     }
 
     public String getInstanceId() {
         return instanceId;
+    }
+
+    public boolean isCurrentlyHealthy() {
+        return healthy.get();
+    }
+
+    public void setRate(int updateRate) {
+        this.updateRate = updateRate;
     }
 
     public void close() {
@@ -395,8 +403,8 @@ public class LeaderElectionImpl extends AbstractService{
     @Override
     protected void doStart() {
         task = executor.scheduleAtFixedRate(new HeartBeater(),
-                                            UPDATE_INTERVAL_MILLIS,
-                                            UPDATE_INTERVAL_MILLIS,
+                                            updateRate,
+                                            updateRate,
                                             TimeUnit.MILLISECONDS);
         notifyStarted();
     }

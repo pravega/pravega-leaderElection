@@ -5,7 +5,6 @@ import java.util.List;
 
 
 public class LeaderElectionTest extends TestCase {
-
     @Test
     public void testInitialElection3() throws InterruptedException {
         int host = 3;
@@ -50,20 +49,6 @@ public class LeaderElectionTest extends TestCase {
         String leader3 = cfg.checkOneLeader();
         assertNotNull(leader3);
         assertEquals(leader3, leader2);
-
-        cfg.stop();
-    }
-
-    @Test
-    public void testNoLeader3() throws InterruptedException {
-        int host = 3;
-        TestConfig cfg = TestConfig.make_config(host);
-        String leader = cfg.checkOneLeader();
-        assertNotNull(leader);
-
-        cfg.disconnect(leader);
-        Thread.sleep(2500);
-        assertTrue(cfg.checkNoLeader());
 
         cfg.stop();
     }
