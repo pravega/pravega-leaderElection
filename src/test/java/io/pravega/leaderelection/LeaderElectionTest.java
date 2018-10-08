@@ -36,7 +36,7 @@ public class LeaderElectionTest extends TestCase {
 
     @Test
     public void testReElection3() throws InterruptedException {
-        int host = 3;
+        int host = 2;
         TestConfig cfg = TestConfig.make_config(host);
         String leader = cfg.checkOneLeader();
         assertNotNull(leader);
@@ -118,13 +118,12 @@ public class LeaderElectionTest extends TestCase {
         Thread.sleep(1000);
         cfg.connect(hosts.get(1));
         cfg.connect(hosts.get(2));
+        cfg.connect(hosts.get(0));
         String newLeader = cfg.checkOneLeader();
         assertNotNull(newLeader);
         assertEquals(newLeader, hosts.get(3));
 
-
         cfg.disconnect(newLeader);
-        cfg.connect(hosts.get(0));
         cfg.disconnect(hosts.get(1));
         cfg.disconnect(hosts.get(2));
         Thread.sleep(1000);

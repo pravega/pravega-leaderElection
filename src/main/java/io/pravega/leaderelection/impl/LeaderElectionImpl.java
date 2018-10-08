@@ -314,7 +314,7 @@ public class LeaderElectionImpl extends AbstractService{
                     }
                 });
 
-                stateSync.updateState((state,updates) -> {
+                stateSync.updateState((state, updates) -> {
                     if (state.leaderName == null) {
                         String newLeader = state.liveInstances.entrySet()
                                 .stream().max(LiveInstances::compare).get().getKey();
@@ -325,20 +325,16 @@ public class LeaderElectionImpl extends AbstractService{
 
                 // when leader changes, notify to all.
                 if (leaderName == null || !leaderName.equals(stateSync.getState().leaderName)) {
-                    System.out.println(leaderName + " " + instanceId);
                     leaderName = stateSync.getState().leaderName;
-                    System.out.println(leaderName);
                     listener.onNewLeader(leaderName);
                 }
-                // check healthy
+                // check host healthy
                 notifyListener();
 
             } catch (Exception e) {
                 log.warn("Encountered an error while heartbeating: " + e);
                 if (healthy.compareAndSet(true,false) && instanceId.equals(leaderName)) {
-                    if (instanceId.equals(leaderName)) {
-                        listener.stopActingLeader();
-                    }
+                    listener.stopActingLeader();
                 }
             }
         }
