@@ -234,20 +234,6 @@ public class LeaderElectionImpl extends AbstractService{
     }
 
     @RequiredArgsConstructor
-    private static class ClearLeaderName extends HeartbeatUpdate {
-        private static final long serialVersionUID = 1L;
-        @Override
-        public LiveInstances applyTo(LiveInstances state, Revision newRevision) {
-
-            return new LiveInstances(state.scopedStreamName,
-                    newRevision,
-                    Collections.unmodifiableMap(state.liveInstances),
-                    state.vectorTime,
-                    null);
-        }
-    }
-
-    @RequiredArgsConstructor
     private static class LeaderSet extends HeartbeatUpdate {
         private static final long serialVersionUID = 1L;
         private final String newLeader;
@@ -288,7 +274,6 @@ public class LeaderElectionImpl extends AbstractService{
 
 
     private class HeartBeater implements Runnable {
-
         @Override
         public void run() {
             try {
@@ -308,19 +293,18 @@ public class LeaderElectionImpl extends AbstractService{
                         if (!id.equals(instanceId)) {
                             updates.add(new DeclareDead(id));
                             if (id.equals(state.leaderName)) {
-                                updates.add(new ClearLeaderName());
+                                String newLeader = state.liveInstances.entrySet()
+                                        .stream().max(LiveInstances::compare).get().getKey();
+                                updates.add(new LeaderSet(newLeader));
                             }
                         }
                     }
-                });
-
-                stateSync.updateState((state, updates) -> {
+                    // for initial state or other states that leader doesn't exist
                     if (state.leaderName == null) {
                         String newLeader = state.liveInstances.entrySet()
                                 .stream().max(LiveInstances::compare).get().getKey();
                         updates.add(new LeaderSet(newLeader));
                     }
-
                 });
 
                 // when leader changes, notify to all.
@@ -378,11 +362,7 @@ public class LeaderElectionImpl extends AbstractService{
     public String getInstanceId() {
         return instanceId;
     }
-
-    public boolean isCurrentlyHealthy() {
-        return healthy.get();
-    }
-
+    
     public void setRate(int updateRate) {
         this.updateRate = updateRate;
     }
