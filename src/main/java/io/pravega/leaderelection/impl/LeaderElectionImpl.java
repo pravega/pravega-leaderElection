@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.leaderelection.impl;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractService;
@@ -35,7 +44,7 @@ public class LeaderElectionImpl extends AbstractService{
     /**
      * Number of intervals behind before another host should be considered dead.
      */
-    private static final int DEATH_THRESHOLD = 6;
+    private static final int DEATH_THRESHOLD = 10;
     /**
      * Number of intervals behind before we should stop executing for safety.
      */
