@@ -6,6 +6,7 @@
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  */
 package io.pravega.leaderelection;
 import java.util.Map;
@@ -15,12 +16,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
 
-public class TestConfig {
-    private Map<String, Client> clientMap;
-    private Set<String> connected;
+public class TestGroup {
+    private final Map<String, Client> clientMap;
+    private final Set<String> connected;
     private static final int ELECTION_TIMEOUT = 5000;
 
-    public TestConfig(int number) {
+    public TestGroup(int number) {
         clientMap = new HashMap<>();
         connected = new HashSet<>();
         createClients(number);
@@ -36,8 +37,8 @@ public class TestConfig {
         }
     }
 
-    public static TestConfig make_config(int client_number) {
-        return new TestConfig(client_number);
+    public static TestGroup make_group(int client_number) {
+        return new TestGroup(client_number);
     }
 
     /**
@@ -97,7 +98,6 @@ public class TestConfig {
             for (String host: clientMap.keySet()) {
                 if (connected.contains(host)) {
                     Client t = clientMap.get(host);
-                    System.out.println(t.get());
                     leaders.add(t.getLeader());
                 }
             }
