@@ -15,6 +15,9 @@ import java.util.List;
 
 
 public class LeaderElectionTest {
+    /**
+     * Test if there is a leader when there are 3 hosts.
+     */
     @Test
     public void testInitialElection3() throws InterruptedException {
         int host = 3;
@@ -24,6 +27,10 @@ public class LeaderElectionTest {
         cfg.stop();
     }
 
+    /**
+     * Test when all follower crash and re-join,
+     * it will not change the leader.
+     */
     @Test
     public void testMemberCrash3() throws InterruptedException {
         int host = 3;
@@ -44,6 +51,10 @@ public class LeaderElectionTest {
         cfg.stop();
     }
 
+    /**
+     * Test when leader crashed, it will select a new leader.
+     * When old leader comes back, it will not affect new leader.
+     */
     @Test
     public void testReElection3() throws InterruptedException {
         int host = 2;
@@ -63,6 +74,11 @@ public class LeaderElectionTest {
         cfg.stop();
     }
 
+    /**
+     * Test the correctness of selecting new leader.
+     * it will make some hosts detach for some time then come back.
+     * Make sure that select most healthy host as new leader.
+     */
     @Test
     public void testLeaderCorrectness3() throws InterruptedException {
         int host = 3;
@@ -75,11 +91,9 @@ public class LeaderElectionTest {
         String h1 = hosts.get(0);
         String h2 = hosts.get(1);
 
-
         cfg.disconnect(h2);
         Thread.sleep(1000);
         cfg.connect(h2);
-
 
         cfg.disconnect(leader);
         String newLeader = cfg.checkOneLeader();
@@ -88,6 +102,9 @@ public class LeaderElectionTest {
         cfg.stop();
     }
 
+    /**
+     * Test leader crashed one by one.
+     */
     @Test
     public void testAllCrash3() throws InterruptedException {
         int host = 3;
@@ -103,7 +120,6 @@ public class LeaderElectionTest {
         newLeader = cfg.checkOneLeader();
         Assert.assertNotNull(newLeader);
 
-
         cfg.disconnect(newLeader);
         newLeader = cfg.checkOneLeader();
         Assert.assertNull(newLeader);
@@ -111,6 +127,9 @@ public class LeaderElectionTest {
         cfg.stop();
     }
 
+    /**
+     * Test Re-election with 5 hosts.
+     */
     @Test
     public void testReElection5() throws InterruptedException {
         int host = 5;

@@ -21,6 +21,10 @@ public class TestGroup {
     private final Set<String> connected;
     private static final int ELECTION_TIMEOUT = 5000;
 
+    /**
+     * Create a test group with given number of host.
+     * @param number the number of the hosts.
+     */
     public TestGroup(int number) {
         clientMap = new HashMap<>();
         connected = new HashSet<>();
@@ -37,6 +41,9 @@ public class TestGroup {
         }
     }
 
+    /**
+     * Make A new Test group.
+     */
     public static TestGroup make_group(int client_number) {
         return new TestGroup(client_number);
     }
@@ -87,7 +94,7 @@ public class TestGroup {
     }
 
     /**
-     * check that there's exactly one leader.
+     * check there's exactly one leader.
      * try a few times in case re-elections are needed.
      */
     public String checkOneLeader() throws InterruptedException {
@@ -113,7 +120,7 @@ public class TestGroup {
     }
 
     /**
-     * return all connected host.
+     * return all connected hosts.
      */
     public List<String> getAllConnectHost() {
         List<String> res = new ArrayList<>();

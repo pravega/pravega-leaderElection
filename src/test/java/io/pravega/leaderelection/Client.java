@@ -21,24 +21,44 @@ class Client extends Thread implements LeaderElection.LeaderElectionCallback {
     private static final String DEFAULT_CONFIG_NAME = "leaderElection";
     private static final String DEFAULT_CONTROLLER_URI = "tcp://127.0.0.1:9090";
     private final LeaderElection le;
+
+    /**
+     * Create a client with the given name,
+     * using default scopeName, streamName and uri to create leader election object.
+     * @param hostName  the name
+     */
     public Client(String hostName) {
         URI controllerURI = URI.create(DEFAULT_CONTROLLER_URI);
         le = new LeaderElection(DEFAULT_SCOPE, DEFAULT_CONFIG_NAME, controllerURI,hostName, this);
     }
 
+    /**
+     * Start o sending heartbeat at the speed of the 500ms.
+     */
     @Override
     public void run() {
         le.start(500);
     }
 
+    /**
+     * Stop sending heartbeat to pravega state synchronizer.
+     */
     public void stopRunning() {
         le.stop();
     }
 
+    /**
+     * Get the current instance name.
+     * @return the name of the instance.
+     */
     public String get() {
         return le.getInstanceId();
     }
 
+    /**
+     * Get the current leader of the group.
+     * @return the name of the leader.
+     */
     public String getLeader() {
         return le.getCurrentLeader();
     }
