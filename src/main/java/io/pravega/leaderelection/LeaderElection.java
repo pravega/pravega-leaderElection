@@ -157,11 +157,11 @@ public class LeaderElection extends AbstractService{
         private final Revision revision;
         private final Map<String, InstanceInfo> liveInstances;
         /**
-         * The vectorTime always record the up to date time in
+         * The vectorTime that records the up-to-date time cycle.
          */
         private final long vectorTime;
         /**
-         * The number of the leader, default value is null.
+         * The name of the leader, default value is null.
          */
         private final String leaderName;
 
@@ -194,7 +194,7 @@ public class LeaderElection extends AbstractService{
         }
 
         /**
-         * Check if the instance healthy or not.
+         * Check if the instance is healthy or not.
          * @param name The name of the instance.
          * @return TRUE means the instance is healthy, FALSE means not healthy.
          */
@@ -309,7 +309,7 @@ public class LeaderElection extends AbstractService{
      * It will do three things:
      * 1. update timestamp and timeout.
      * 2. remove all dead instances.
-     * 3. If leader dead, select a new one.
+     * 3. If leader dead or not exist, select a new one.
      */
     private void sendHeartbeat() {
         stateSync.updateState((state, updates) -> {
@@ -376,7 +376,7 @@ public class LeaderElection extends AbstractService{
     }
 
     /**
-     * Add into group and start to send heartbeat to Pravega.
+     * Set the heartbeat rate and add into group then start to send heartbeat to Pravega.
      * @param updateRate The rate of the sending heartbeat.(in millisecond)
      */
     public void start(int updateRate){
