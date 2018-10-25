@@ -11,7 +11,9 @@
 package io.pravega.leaderelection;
 import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
-
+/**
+ * A client thread that acts as a member in leader election.
+ */
 @Slf4j
 class Client extends Thread implements LeaderElection.LeaderElectionCallback {
 
@@ -19,7 +21,6 @@ class Client extends Thread implements LeaderElection.LeaderElectionCallback {
     private static final String DEFAULT_CONFIG_NAME = "leaderElection";
     private static final String DEFAULT_CONTROLLER_URI = "tcp://127.0.0.1:9090";
     private final LeaderElection le;
-
     public Client(String hostName) {
         URI controllerURI = URI.create(DEFAULT_CONTROLLER_URI);
         le = new LeaderElection(DEFAULT_SCOPE, DEFAULT_CONFIG_NAME, controllerURI,hostName, this);
