@@ -41,6 +41,9 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Provides a leader election API based on Pravega StateSynchronizer.
+ */
 @Slf4j
 public class LeaderElection extends AbstractService{
 
@@ -54,20 +57,23 @@ public class LeaderElection extends AbstractService{
     private static final int UNHEALTHY_THRESHOLD = 3;
 
     /**
-     * The  Universally Unique Identifier to identify LeaderElection Synchronizer.
+     * The Universally Unique Identifier to identify LeaderElection Synchronizer.
      */
     private final String instanceId;
-
+    /**
+     * The variable to record the state of current instance.
+     */
     private final AtomicBoolean healthy = new AtomicBoolean();
-
+    /**
+     * Recording the leaderName locally to judge if leader has changed.
+     */
     private String leaderName = null;
-
     /**
      *  The initial timeout cycle for each host.
      */
     private static final double INITIAL_TIMEOUT = 1.0;
     /**
-     * The heartbeat rate in pre
+     * The heartbeat rate in millisecond.
      */
     private int updateRate;
     /**
@@ -86,10 +92,24 @@ public class LeaderElection extends AbstractService{
      * The result of the scheduling executor.
      */
     private ScheduledFuture<?> task;
-
+    /**
+     * The clientFactory of Pravega Stream.
+     */
     private final ClientFactory clientFactory;
+    /**
+     * The streamManager of Pravega stream.
+     */
     private final StreamManager streamManager;
 
+    /**
+     * Create an leader election instance. If the scope and stream doesn't exist, it will create
+     * the scope and stream. Otherwise, it will join into the stream.
+     * @param scopeName  The scopeName of the election stream.
+     * @param streamName The streamName of the election stream.
+     * @param controllerURI The controller URI of the Pravega.
+     * @param hostName The name of the instance.
+     * @param listener The instance of the callback listener.
+     */
     public LeaderElection(String scopeName, String streamName, URI controllerURI, String hostName,
                           LeaderElectionCallback listener) {
 
@@ -155,7 +175,7 @@ public class LeaderElection extends AbstractService{
         }
 
         /**
-         * Return all instances are dead at given time.
+         * Return all instances that are dead at given time.
          * @param vectorTime The given time.
          * @return A list of the instances that are dead.
          */
@@ -173,13 +193,18 @@ public class LeaderElection extends AbstractService{
             return res;
         }
 
-        public boolean isHealthy(String name) {
+        /**
+         * Check if the instance healthy or not.
+         * @param name The name of the instance.
+         * @return TRUE means the instance is healthy, FALSE means not healthy.
+         */
+        private boolean isHealthy(String name) {
             long unhealthyThreshold = vectorTime - UNHEALTHY_THRESHOLD * liveInstances.size();
             InstanceInfo instanceinfo = liveInstances.get(name);
             return instanceinfo == null || instanceinfo.timestamp >= unhealthyThreshold;
         }
         /**
-         * Return all instances that are alived.
+         * Return all instances that are alive.
          * @return A set of alive instances.
          */
         private Set<String> getLiveInstances() {
@@ -279,6 +304,42 @@ public class LeaderElection extends AbstractService{
         }
     }
 
+    /**
+     * Send new heartbeat to Pravega through the state Synchronizer.
+     * It will do three things:
+     * 1. update timestamp and timeout.
+     * 2. remove all dead instances.
+     * 3. If leader dead, select a new one.
+     */
+    private void sendHeartbeat() {
+        stateSync.updateState((state, updates) -> {
+            long vectorTime = state.getVectorTime() + 1;
+            InstanceInfo instanceInfo = state.liveInstances.get(instanceId);
+            long newTimes = instanceInfo.times + 1;
+            double newTimeout = (instanceInfo.timeout * instanceInfo.times +
+                    (vectorTime - instanceInfo.timestamp) * 1.0 /
+                            state.liveInstances.size()) / newTimes;
+
+            updates.add(new HeartBeat(instanceId, new InstanceInfo(vectorTime, newTimes, newTimeout)));
+
+            for (String id : state.findInstancesThatWillDieBy(vectorTime)) {
+                if (!id.equals(instanceId)) {
+                    updates.add(new DeclareDead(id));
+                    if (id.equals(state.leaderName)) {
+                        String newLeader = state.liveInstances.entrySet()
+                                .stream().max(LiveInstances::compare).get().getKey();
+                        updates.add(new SetLeader(newLeader));
+                    }
+                }
+            }
+            // for initial state or other states that leader doesn't exist
+            if (state.leaderName == null) {
+                String newLeader = state.liveInstances.entrySet()
+                        .stream().max(LiveInstances::compare).get().getKey();
+                updates.add(new SetLeader(newLeader));
+            }
+        });
+    }
 
     private class HeartBeater implements Runnable {
         @Override
@@ -286,42 +347,13 @@ public class LeaderElection extends AbstractService{
             try {
                 stateSync.fetchUpdates();
                 notifyListener();
-                stateSync.updateState((state, updates) -> {
-                    long vectorTime = state.getVectorTime() + 1;
-                    InstanceInfo instanceInfo = state.liveInstances.get(instanceId);
-                    long newTimes = instanceInfo.times + 1;
-                    double newTimeout = (instanceInfo.timeout * instanceInfo.times +
-                            (vectorTime - instanceInfo.timestamp) * 1.0 /
-                                    state.liveInstances.size()) / newTimes;
-
-                    updates.add(new HeartBeat(instanceId, new InstanceInfo(vectorTime, newTimes, newTimeout)));
-
-                    for (String id : state.findInstancesThatWillDieBy(vectorTime)) {
-                        if (!id.equals(instanceId)) {
-                            updates.add(new DeclareDead(id));
-                            if (id.equals(state.leaderName)) {
-                                String newLeader = state.liveInstances.entrySet()
-                                        .stream().max(LiveInstances::compare).get().getKey();
-                                updates.add(new SetLeader(newLeader));
-                            }
-                        }
-                    }
-                    // for initial state or other states that leader doesn't exist
-                    if (state.leaderName == null) {
-                        String newLeader = state.liveInstances.entrySet()
-                                .stream().max(LiveInstances::compare).get().getKey();
-                        updates.add(new SetLeader(newLeader));
-                    }
-                });
-
+                sendHeartbeat();
                 // when leader changes, notify to all.
                 if (leaderName == null || !leaderName.equals(stateSync.getState().leaderName)) {
                     leaderName = stateSync.getState().leaderName;
                     listener.onNewLeader(leaderName);
                 }
-                // check host healthy
                 notifyListener();
-
             } catch (Exception e) {
                 log.warn("Encountered an error while heartbeating: " + e);
                 if (healthy.compareAndSet(true,false) && instanceId.equals(leaderName)) {
@@ -343,17 +375,24 @@ public class LeaderElection extends AbstractService{
         }
     }
 
+    /**
+     * Add into group and start to send heartbeat to Pravega.
+     * @param updateRate The rate of the sending heartbeat.(in millisecond)
+     */
     public void start(int updateRate){
         setRate(updateRate);
         add();
         startAsync();
     }
 
+    /**
+     * Stop to send heartbeat to Pravega.
+     */
     public void stop() {
         stopAsync();
     }
 
-    public void notifyListener() {
+    private void notifyListener() {
         LiveInstances currentState = stateSync.getState();
         if (currentState.isHealthy(instanceId)) {
             if (healthy.compareAndSet(false, true)) {
@@ -370,25 +409,56 @@ public class LeaderElection extends AbstractService{
         }
     }
 
+    /**
+     * The interface of LeaderElection callback.
+     */
     public interface LeaderElectionCallback {
+        /**
+         * When leader changes, every host will call this function.
+         * @param name The host which become leader.
+         */
         void onNewLeader(String name);
+
+        /**
+         * When leader is unhealthy and become healthy,
+         * it will call this function to act as leader.
+         */
         void startActingLeader();
+
+        /**
+         * When leader is healthy and become unhealthy,
+         * it will call this function to stop acting as leader.
+         */
         void stopActingLeader();
     }
 
+    /**
+     * Get current members name in the group.
+     * @return A set that contains all members.
+     */
     public Set<String> getCurrentMembers() {
-        return stateSync.getState().getLiveInstances();
+        return Collections.unmodifiableSet(stateSync.getState().getLiveInstances());
     }
 
+    /**
+     * Get current leader.
+     * @return The name of the leader.
+     */
     public String getCurrentLeader() {
-        return leaderName;
+        return stateSync.getState().leaderName;
     }
 
+    /**
+     * Get current instance id.
+     * @return
+     */
     public String getInstanceId() {
         return instanceId;
     }
 
-
+    /**
+     * Close the leaderElection and free any resources associated with it.
+     */
     public void close() {
         if (stateSync != null) {
             stateSync.close();
