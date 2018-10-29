@@ -12,6 +12,7 @@ package io.pravega.leaderelection;
 import org.junit.Assert;
 import org.junit.Test;
 import java.util.List;
+import java.util.Random;
 
 
 public class LeaderElectionTest {
@@ -163,6 +164,28 @@ public class LeaderElectionTest {
         Assert.assertEquals(newLeader, hosts.get(0));
 
         cfg.stop();
+    }
+
+    /**
+     * Test random crash of the member then check there is a leader
+     * and only the live instances.
+     */
+    @Test
+    public void testRandomCrash() throws InterruptedException {
+        int host = 5;
+        Random random = new Random();
+        TestGroup cfg = TestGroup.make_group(host);
+        String leader = cfg.checkOneLeader();
+        Assert.assertNotNull(leader);
+        // random disconnect one member
+        for (int i = 0; i < 10; i++) {
+            int number = random.nextInt(5);
+            cfg.disconnect("Host-" + number);
+            leader = cfg.checkOneLeader();
+            Assert.assertNotNull(leader);
+            Assert.assertTrue(cfg.checkConnectHost());
+            cfg.connect("Host-" + number);
+        }
     }
 
 }

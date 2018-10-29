@@ -11,11 +11,15 @@
 package io.pravega.leaderelection;
 import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+
 /**
  * A client thread that acts as a member in leader election.
  */
 @Slf4j
-class Client extends Thread implements LeaderElection.LeaderElectionCallback {
+class Client extends Thread implements LeaderElectionCallback {
 
     private static final String DEFAULT_SCOPE = "election";
     private static final String DEFAULT_CONFIG_NAME = "leaderElection";
@@ -65,6 +69,9 @@ class Client extends Thread implements LeaderElection.LeaderElectionCallback {
     }
 
 
+    public Set<String> getAllMembers() {
+        return le.getCurrentMembers();
+    }
     @Override
     public void onNewLeader(String name) {
         log.info(name + " become leader!");
@@ -79,4 +86,5 @@ class Client extends Thread implements LeaderElection.LeaderElectionCallback {
     public void stopActingLeader() {
         log.info(le.getInstanceId() + "stop acting leader");
     }
+
 }

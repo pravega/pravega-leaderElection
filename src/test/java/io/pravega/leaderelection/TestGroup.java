@@ -132,6 +132,21 @@ public class TestGroup {
         return res;
     }
 
+
+    public boolean checkConnectHost() {
+        Set<String> res = new HashSet<>(getAllConnectHost());
+
+        for (String host: clientMap.keySet()) {
+            if (connected.contains(host)) {
+                Set<String> members = clientMap.get(host).getAllMembers();
+                if(!res.equals(members)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     /**
      * stop all the clients.
      */

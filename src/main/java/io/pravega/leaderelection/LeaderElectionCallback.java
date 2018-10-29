@@ -21,4 +21,5 @@ public interface LeaderElectionCallback {
      * it will call this function to stop acting as leader.
      */
     void stopActingLeader();
+
 }
