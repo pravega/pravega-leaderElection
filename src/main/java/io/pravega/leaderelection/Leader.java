@@ -18,7 +18,7 @@ public class Leader {
         return leaderName;
     }
 
-    public String setLeader(String name) {
+    public void setLeader(String name) {
         leaderName = name;
     }
 
