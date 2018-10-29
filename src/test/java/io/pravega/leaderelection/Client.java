@@ -45,6 +45,7 @@ class Client extends Thread implements LeaderElection.LeaderElectionCallback {
      */
     public void stopRunning() {
         le.stop();
+        le.close();
     }
 
     /**
