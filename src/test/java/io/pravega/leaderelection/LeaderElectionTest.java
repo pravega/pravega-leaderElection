@@ -57,7 +57,7 @@ public class LeaderElectionTest {
      */
     @Test
     public void testReElection3() throws InterruptedException {
-        int host = 2;
+        int host = 3;
         TestGroup cfg = TestGroup.make_group(host);
         String leader = cfg.checkOneLeader();
         Assert.assertNotNull(leader);

@@ -67,7 +67,7 @@ public class LeaderElection extends AbstractService{
     /**
      * Recording the leaderName locally to judge if leader has changed.
      */
-    private String leaderName = null;
+    private final Leader leader = Leader.getInstance();
     /**
      *  The initial timeout cycle for each host.
      */
@@ -142,11 +142,6 @@ public class LeaderElection extends AbstractService{
         private final long timestamp;
         private final long times;
         private final double timeout;
-
-        private static int compare(InstanceInfo o1, InstanceInfo o2) {
-            return Long.compare(o1.timestamp, o2.timestamp);
-        }
-
     }
 
     @Data
@@ -237,8 +232,10 @@ public class LeaderElection extends AbstractService{
         @Override
         public LiveInstances applyTo(LiveInstances state, Revision newRevision) {
             Map<String, InstanceInfo> tempInstances = new HashMap<>(state.liveInstances);
-            long vectorTime = Long.max(tempInstances.values().stream().max(InstanceInfo::compare).get().timestamp, instanceInfo.timestamp);
-
+            long vectorTime = Long.max(tempInstances.values().stream()
+                                    .map(InstanceInfo::getTimestamp)
+                                    .max(Long::compare)
+                                    .get(), instanceInfo.timestamp);
             tempInstances.put(name, instanceInfo);
             return new LiveInstances(state.scopedStreamName,
                     newRevision,
@@ -316,10 +313,8 @@ public class LeaderElection extends AbstractService{
             long vectorTime = state.getVectorTime() + 1;
             InstanceInfo instanceInfo = state.liveInstances.get(instanceId);
             long newTimes = instanceInfo.times + 1;
-            double newTimeout = (instanceInfo.timeout * instanceInfo.times +
-                    (vectorTime - instanceInfo.timestamp) * 1.0 /
-                            state.liveInstances.size()) / newTimes;
-
+            double newTimeout = (instanceInfo.timeout * instanceInfo.times + (vectorTime - instanceInfo.timestamp) * 1.0
+                                / state.liveInstances.size()) / newTimes;
             updates.add(new HeartBeat(instanceId, new InstanceInfo(vectorTime, newTimes, newTimeout)));
 
             for (String id : state.findInstancesThatWillDieBy(vectorTime)) {
@@ -327,7 +322,10 @@ public class LeaderElection extends AbstractService{
                     updates.add(new DeclareDead(id));
                     if (id.equals(state.leaderName)) {
                         String newLeader = state.liveInstances.entrySet()
-                                .stream().max(LiveInstances::compare).get().getKey();
+                                                              .stream()
+                                                              .max(LiveInstances::compare)
+                                                              .get()
+                                                              .getKey();
                         updates.add(new SetLeader(newLeader));
                     }
                 }
@@ -335,7 +333,10 @@ public class LeaderElection extends AbstractService{
             // for initial state or other states that leader doesn't exist
             if (state.leaderName == null) {
                 String newLeader = state.liveInstances.entrySet()
-                        .stream().max(LiveInstances::compare).get().getKey();
+                                                      .stream()
+                                                      .max(LiveInstances::compare)
+                                                      .get()
+                                                      .getKey();
                 updates.add(new SetLeader(newLeader));
             }
         });
@@ -349,14 +350,14 @@ public class LeaderElection extends AbstractService{
                 notifyListener();
                 sendHeartbeat();
                 // when leader changes, notify to all.
-                if (leaderName == null || !leaderName.equals(stateSync.getState().leaderName)) {
-                    leaderName = stateSync.getState().leaderName;
-                    listener.onNewLeader(leaderName);
+                if (leader.getLeader() == null || !leader.isLeader(stateSync.getState().leaderName)) {
+                    leader.setLeader(stateSync.getState().leaderName);
+                    listener.onNewLeader(stateSync.getState().leaderName);
                 }
                 notifyListener();
             } catch (Exception e) {
                 log.warn("Encountered an error while heartbeating: " + e);
-                if (healthy.compareAndSet(true,false) && instanceId.equals(leaderName)) {
+                if (healthy.compareAndSet(true,false) && instanceId.equals(leader.getLeader())) {
                     listener.stopActingLeader();
                 }
             }
@@ -372,6 +373,8 @@ public class LeaderElection extends AbstractService{
             stateSync.updateState((state, updates) -> {
                 updates.add(new AddMember(instanceId, state.getVectorTime()));
             });
+        } else {
+            log.info("the group has already contain this instance");
         }
     }
 
@@ -396,13 +399,13 @@ public class LeaderElection extends AbstractService{
         LiveInstances currentState = stateSync.getState();
         if (currentState.isHealthy(instanceId)) {
             if (healthy.compareAndSet(false, true)) {
-                if (instanceId.equals(leaderName)) {
+                if (instanceId.equals(leader.getLeader())) {
                     listener.startActingLeader();
                 }
             }
         } else {
             if (healthy.compareAndSet(true, false)) {
-                if (instanceId.equals(leaderName)) {
+                if (instanceId.equals(leader.getLeader())) {
                     listener.stopActingLeader();
                 }
             }
