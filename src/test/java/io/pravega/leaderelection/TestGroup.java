@@ -9,12 +9,10 @@
  *
  */
 package io.pravega.leaderelection;
-import java.util.Map;
-import java.util.Set;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.ArrayList;
+import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class TestGroup {
     private final Map<String, Client> clientMap;
@@ -26,8 +24,8 @@ public class TestGroup {
      * @param number the number of the hosts.
      */
     public TestGroup(int number) {
-        clientMap = new HashMap<>();
-        connected = new HashSet<>();
+        clientMap = new TreeMap<>();
+        connected = new TreeSet<>();
         createClients(number);
 
     }
@@ -37,10 +35,30 @@ public class TestGroup {
             Client temp = new Client("Host-" + i);
             clientMap.put(temp.get(), temp);
             connected.add(temp.get());
-            temp.start();
         }
     }
 
+    /**
+     * start the client thread.
+     */
+    public void startRun() {
+        for (Client t: clientMap.values()) {
+            t.start();
+        }
+    }
+    /**
+     * start the client thread with the delay.
+     */
+    public void startRunWithDelay() {
+        int number = clientMap.size();
+        ScheduledExecutorService threadpool = Executors.newScheduledThreadPool(number);
+        int i = 0;
+        for (Client t: clientMap.values()) {
+            threadpool.schedule(t, i, TimeUnit.SECONDS);
+            i++;
+        }
+        threadpool.shutdown();
+    }
     /**
      * Make A new Test group.
      */

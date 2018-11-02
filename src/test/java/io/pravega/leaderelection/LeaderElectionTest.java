@@ -11,7 +11,6 @@
 package io.pravega.leaderelection;
 import org.junit.Assert;
 import org.junit.Test;
-import java.util.List;
 import java.util.Random;
 
 
@@ -23,6 +22,7 @@ public class LeaderElectionTest {
     public void testInitialElection3() throws InterruptedException {
         int host = 3;
         TestGroup cfg = TestGroup.make_group(host);
+        cfg.startRun();
         String newLeader = cfg.checkOneLeader();
         Assert.assertNotNull(newLeader);
         cfg.stop();
@@ -36,6 +36,7 @@ public class LeaderElectionTest {
     public void testMemberCrash3() throws InterruptedException {
         int host = 3;
         TestGroup cfg = TestGroup.make_group(host);
+        cfg.startRun();
         String leader = cfg.checkOneLeader();
         Assert.assertNotNull(leader);
 
@@ -60,6 +61,7 @@ public class LeaderElectionTest {
     public void testReElection3() throws InterruptedException {
         int host = 3;
         TestGroup cfg = TestGroup.make_group(host);
+        cfg.startRun();
         String leader = cfg.checkOneLeader();
         Assert.assertNotNull(leader);
 
@@ -84,22 +86,14 @@ public class LeaderElectionTest {
     public void testLeaderCorrectness3() throws InterruptedException {
         int host = 3;
         TestGroup cfg = TestGroup.make_group(host);
+        cfg.startRunWithDelay();
         String leader = cfg.checkOneLeader();
         Assert.assertNotNull(leader);
-
-        List<String> hosts = cfg.getAllConnectHost();
-        hosts.remove(leader);
-        String h1 = hosts.get(0);
-        String h2 = hosts.get(1);
-
-        cfg.disconnect(h2);
-        Thread.sleep(1000);
-        cfg.connect(h2);
 
         cfg.disconnect(leader);
         String newLeader = cfg.checkOneLeader();
         Assert.assertNotNull(newLeader);
-        Assert.assertEquals(newLeader, h1);
+        Assert.assertEquals(newLeader, "Host-1");
         cfg.stop();
     }
 
@@ -110,6 +104,7 @@ public class LeaderElectionTest {
     public void testAllCrash3() throws InterruptedException {
         int host = 3;
         TestGroup cfg = TestGroup.make_group(host);
+        cfg.startRun();
         String leader = cfg.checkOneLeader();
         Assert.assertNotNull(leader);
 
@@ -134,35 +129,18 @@ public class LeaderElectionTest {
     @Test
     public void testReElection5() throws InterruptedException {
         int host = 5;
-
         TestGroup cfg = TestGroup.make_group(host);
+        cfg.startRunWithDelay();
         String leader = cfg.checkOneLeader();
         Assert.assertNotNull(leader);
-
         cfg.disconnect(leader);
-        List<String> hosts = cfg.getAllConnectHost();
-        //disconnect one host
-        cfg.disconnect(hosts.get(0));
-        cfg.disconnect(hosts.get(1));
-        cfg.disconnect(hosts.get(2));
-        Thread.sleep(1000);
-        cfg.connect(hosts.get(1));
-        cfg.connect(hosts.get(2));
-        cfg.connect(hosts.get(0));
         String newLeader = cfg.checkOneLeader();
         Assert.assertNotNull(newLeader);
-        Assert.assertEquals(newLeader, hosts.get(3));
-
+        Assert.assertEquals(newLeader, "Host-1");
         cfg.disconnect(newLeader);
-        cfg.disconnect(hosts.get(1));
-        cfg.disconnect(hosts.get(2));
-        Thread.sleep(1000);
-        cfg.connect(hosts.get(1));
-        cfg.connect(hosts.get(2));
         newLeader = cfg.checkOneLeader();
         Assert.assertNotNull(newLeader);
-        Assert.assertEquals(newLeader, hosts.get(0));
-
+        Assert.assertEquals(newLeader, "Host-2");
         cfg.stop();
     }
 
@@ -175,6 +153,7 @@ public class LeaderElectionTest {
         int host = 5;
         Random random = new Random();
         TestGroup cfg = TestGroup.make_group(host);
+        cfg.startRun();
         String leader = cfg.checkOneLeader();
         Assert.assertNotNull(leader);
         // random disconnect one member
