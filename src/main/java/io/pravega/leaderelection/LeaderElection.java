@@ -67,7 +67,7 @@ public class LeaderElection extends AbstractService{
     /**
      * Recording the leaderName locally to judge if leader has changed.
      */
-    private final Leader leader = Leader.getInstance();
+    private final Leader leader = new Leader();
     /**
      *  The initial timeout cycle for each host.
      */
@@ -350,8 +350,7 @@ public class LeaderElection extends AbstractService{
                 notifyListener();
                 sendHeartbeat();
                 // when leader changes, notify to all.
-                if (leader.getLeader() == null || !leader.isLeader(stateSync.getState().leaderName)) {
-                    leader.setLeader(stateSync.getState().leaderName);
+                if (leader.compareAndSet(stateSync.getState().leaderName)) {
                     listener.onNewLeader(stateSync.getState().leaderName);
                 }
                 notifyListener();
@@ -470,4 +469,23 @@ public class LeaderElection extends AbstractService{
         notifyStopped();
     }
 
+    private static class Leader {
+        private String leaderName;
+        private Leader() {
+            leaderName = null;
+        }
+
+        private String getLeader() {
+            return leaderName;
+        }
+
+        private synchronized boolean compareAndSet(String name) {
+            if (leaderName == null || !leaderName.equals(name)) {
+                leaderName = name;
+                return true;
+            }
+
+            return false;
+        }
+    }
 }
