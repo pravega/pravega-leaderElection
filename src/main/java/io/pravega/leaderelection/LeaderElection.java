@@ -40,14 +40,12 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Provides a leader election API based on Pravega StateSynchronizer.
  */
 @Slf4j
-public class LeaderElection extends AbstractService{
+public class LeaderElection extends AbstractService {
 
     /**
      * Number of intervals behind before another host should be considered dead.
@@ -57,7 +55,10 @@ public class LeaderElection extends AbstractService{
      * Number of intervals behind before we should stop executing for safety.
      */
     private static final int UNHEALTHY_THRESHOLD = 3;
-
+    /**
+     *  The initial timeout cycle for each host.
+     */
+    private static final double INITIAL_TIMEOUT = 1.0;
     /**
      * The Universally Unique Identifier to identify LeaderElection Synchronizer.
      */
@@ -70,10 +71,6 @@ public class LeaderElection extends AbstractService{
      * Recording the leaderName locally to judge if leader has changed.
      */
     private final Leader leader = new Leader();
-    /**
-     *  The initial timeout cycle for each host.
-     */
-    private static final double INITIAL_TIMEOUT = 1.0;
     /**
      * The heartbeat rate in millisecond.
      */
@@ -129,7 +126,7 @@ public class LeaderElection extends AbstractService{
         StreamConfiguration streamConfig = StreamConfiguration.builder().
                 scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
-        streamManager.createStream(scopeName, streamName,streamConfig);
+        streamManager.createStream(scopeName, streamName, streamConfig);
 
         stateSync = clientFactory.createStateSynchronizer(streamName,
                                                     new JavaSerializer<HeartbeatUpdate>(),
@@ -167,7 +164,7 @@ public class LeaderElection extends AbstractService{
             return revision.compareTo(o.revision);
         }
 
-        private static int compare(Entry<String, InstanceInfo> o1 , Entry<String, InstanceInfo> o2) {
+        private static int compare(Entry<String, InstanceInfo> o1, Entry<String, InstanceInfo> o2) {
             return Long.compare(o1.getValue().times, o2.getValue().times);
         }
 
@@ -200,6 +197,7 @@ public class LeaderElection extends AbstractService{
             InstanceInfo instanceinfo = liveInstances.get(name);
             return instanceinfo == null || instanceinfo.timestamp >= unhealthyThreshold;
         }
+
         /**
          * Return all instances that are alive.
          * @return A set of alive instances.
@@ -272,7 +270,7 @@ public class LeaderElection extends AbstractService{
         public LiveInstances applyTo(LiveInstances state, Revision newRevision) {
                 Map<String, InstanceInfo> tempInstances = new HashMap<>(state.liveInstances);
 
-                for(String key: tempInstances.keySet()) {
+                for (String key: tempInstances.keySet()) {
                     InstanceInfo info = tempInstances.get(key);
                     tempInstances.put(key, new InstanceInfo(info.timestamp, 1, info.timeout));
                 }
@@ -358,7 +356,7 @@ public class LeaderElection extends AbstractService{
                 notifyListener();
             } catch (Exception e) {
                 log.warn("Encountered an error while heartbeating: " + e);
-                if (healthy.compareAndSet(true,false) && instanceId.equals(leader.getLeader())) {
+                if (healthy.compareAndSet(true, false) && instanceId.equals(leader.getLeader())) {
                     listener.stopActingLeader();
                 }
             }
@@ -383,7 +381,7 @@ public class LeaderElection extends AbstractService{
      * Set the heartbeat rate and add into group then start to send heartbeat to Pravega.
      * @param updateRate The rate of the sending heartbeat.(in millisecond)
      */
-    public void start(int updateRate){
+    public void start(int updateRate) {
         setRate(updateRate);
         add();
         startAsync();

@@ -8,6 +8,14 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  */
+buildscript {
+    repositories {
+        jcenter()
+        maven {
+            url "https://plugins.gradlw.org/m2/"
+        }
+    }
+}
 
 allprojects {
     apply plugin: 'idea'
@@ -18,7 +26,6 @@ allprojects {
     }
     apply from: "$rootDir/gradle/checkstyle.gradle"
     apply from: "$rootDir/gradle/findbugs.gradle"
-    apply from: "$rootDir/gradle/java.gradle"
     repositories {
         jcenter()
         mavenCentral()
