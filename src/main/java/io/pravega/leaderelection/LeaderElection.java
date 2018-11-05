@@ -40,6 +40,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Provides a leader election API based on Pravega StateSynchronizer.
@@ -471,21 +473,31 @@ public class LeaderElection extends AbstractService{
 
     private static class Leader {
         private String leaderName;
+        private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
         private Leader() {
             leaderName = null;
         }
 
         private String getLeader() {
-            return leaderName;
+            lock.readLock().lock();
+            try {
+                return leaderName;
+            } finally {
+                lock.readLock().unlock();
+            }
         }
 
-        private synchronized boolean compareAndSet(String name) {
-            if (leaderName == null || !leaderName.equals(name)) {
-                leaderName = name;
-                return true;
+        private boolean compareAndSet(String name) {
+            lock.writeLock().lock();
+            try {
+                if (leaderName == null || !leaderName.equals(name)) {
+                    leaderName = name;
+                    return true;
+                }
+                return false;
+            } finally {
+                lock.writeLock().unlock();
             }
-
-            return false;
         }
     }
 }
