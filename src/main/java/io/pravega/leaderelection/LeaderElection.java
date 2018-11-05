@@ -473,31 +473,21 @@ public class LeaderElection extends AbstractService{
 
     private static class Leader {
         private String leaderName;
-        private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+
         private Leader() {
             leaderName = null;
         }
 
-        private String getLeader() {
-            lock.readLock().lock();
-            try {
-                return leaderName;
-            } finally {
-                lock.readLock().unlock();
-            }
+        private synchronized String getLeader() {
+            return leaderName;
         }
 
-        private boolean compareAndSet(String name) {
-            lock.writeLock().lock();
-            try {
-                if (leaderName == null || !leaderName.equals(name)) {
-                    leaderName = name;
-                    return true;
-                }
-                return false;
-            } finally {
-                lock.writeLock().unlock();
+        private synchronized boolean compareAndSet(String name) {
+            if (leaderName == null || !leaderName.equals(name)) {
+                leaderName = name;
+                return true;
             }
+            return false;
         }
     }
 }
