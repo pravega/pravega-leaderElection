@@ -139,7 +139,7 @@ public class LeaderElection extends AbstractService {
     @Data
     private static class InstanceInfo implements Serializable {
         private final long timestamp;
-        private final long times;
+        private final long counts;
         private final double timeout;
     }
 
@@ -165,7 +165,7 @@ public class LeaderElection extends AbstractService {
         }
 
         private static int compare(Entry<String, InstanceInfo> o1, Entry<String, InstanceInfo> o2) {
-            return Long.compare(o1.getValue().times, o2.getValue().times);
+            return Long.compare(o1.getValue().counts, o2.getValue().counts);
         }
 
         /**
@@ -312,10 +312,10 @@ public class LeaderElection extends AbstractService {
         stateSync.updateState((state, updates) -> {
             long vectorTime = state.getVectorTime() + 1;
             InstanceInfo instanceInfo = state.liveInstances.get(instanceId);
-            long newTimes = instanceInfo.times + 1;
-            double newTimeout = (instanceInfo.timeout * instanceInfo.times + (vectorTime - instanceInfo.timestamp) * 1.0
-                                / state.liveInstances.size()) / newTimes;
-            updates.add(new HeartBeat(instanceId, new InstanceInfo(vectorTime, newTimes, newTimeout)));
+            long newCounts = instanceInfo.counts + 1;
+            double newTimeout = (instanceInfo.timeout * instanceInfo.counts + (vectorTime - instanceInfo.timestamp) * 1.0
+                                / state.liveInstances.size()) / newCounts;
+            updates.add(new HeartBeat(instanceId, new InstanceInfo(vectorTime, newCounts, newTimeout)));
 
             for (String id : state.findInstancesThatWillDieBy(vectorTime)) {
                 if (!id.equals(instanceId)) {
